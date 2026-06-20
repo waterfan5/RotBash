@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Rotate and Bash — Test Runner</title>
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,600&family=Inter:wght@400;500;600&display=swap">
+   <link rel="stylesheet" href="../Shared/theme.css" />
+   <script src="rotbash-logic.js"></script>
+   <style>
+      body { padding: var(--nltm-sp-6) var(--nltm-sp-5); }
+      h1 {
+         font-family: var(--nltm-font-display);
+         font-style: italic;
+         color: var(--nltm-primary-deep);
+         margin: 0 0 var(--nltm-sp-2);
+      }
+      .summary { font-size: var(--nltm-fs-4); font-weight: 600; margin: var(--nltm-sp-2) 0 var(--nltm-sp-5); }
+      .summary.all-pass { color: var(--nltm-success); }
+      .summary.has-fail { color: #b00000; }
+      table {
+         border-collapse: collapse;
+         width: 100%;
+         background: var(--nltm-surface);
+         border: 1px solid var(--nltm-line);
+         border-radius: var(--nltm-radius);
+         overflow: hidden;
+         box-shadow: var(--nltm-shadow-1);
+      }
+      th {
+         background: var(--nltm-primary-soft);
+         color: var(--nltm-primary-deep);
+         padding: var(--nltm-sp-2) var(--nltm-sp-3);
+         text-align: left;
+         border-bottom: 1px solid var(--nltm-line);
+      }
+      td { padding: var(--nltm-sp-2) var(--nltm-sp-3); border-bottom: 1px solid var(--nltm-line); vertical-align: top; }
+      tr.pass td:nth-child(3) { color: var(--nltm-success); font-weight: 600; }
+      tr.fail { background: var(--nltm-accent-soft); }
+      tr.fail td:nth-child(3) { color: #b00000; font-weight: 600; }
+      .detail { color: var(--nltm-muted); font-size: var(--nltm-fs-2); font-family: var(--nltm-font-mono); }
+   </style>
+</head>
+<body class="nltm-page">
+
+   <h1>Rotate and Bash — Test Runner</h1>
+   <div id="summary" class="summary"></div>
+   <table>
+      <thead>
+         <tr><th>#</th><th>Test</th><th>Result</th><th class="detail">Details</th></tr>
+      </thead>
+      <tbody id="results"></tbody>
+   </table>
+
+   <script>
+      const ABC = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+      function run(name, fn) {
+         try { return Object.assign({ name }, fn()); }
+         catch (e) { return { name, passed: false, detail: "Exception: " + e.message }; }
+      }
+
+      // The built-in default sample text from index.html (smoke test).
+      const SAMPLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\nXGTW XXKUI DIUVTX ADQZ ZDBCOT DVHG HRC DMHM XSDMHM\n";
+
+      const tests = [
+
+         // ── RotX ──────────────────────────────────────────────────────
+         ["1 — RotX ROT-13 round-trip", () => {
+            const enc = RotX("HELLO", 13, ABC);
+            const dec = RotX(enc, 13, ABC);
+            return { passed: enc === "URYYB" && dec === "HELLO", detail: `enc="${enc}" dec="${dec}"` };
+         }],
+
+         ["2 — RotX wrap-around (Z+1 -> A)", () => {
+            const out = RotX("Z", 1, ABC);
+            return { passed: out === "A", detail: `out="${out}"` };
+         }],
+
+         ["3 — RotX leaves non-alphabet chars", () => {
+            const out = RotX("A B-1", 1, ABC);
+            return { passed: out === "B C-1", detail: `out="${out}"` };
+         }],
+
+         ["4 — RotX custom alphabet", () => {
+            const out = RotX("AB12", 1, "AB12");
+            return { passed: out === "B12A", detail: `out="${out}"` };
+         }],
+
+         // ── Atbash ────────────────────────────────────────────────────
+         ["5 — Atbash A<->Z mapping", () => {
+            const out = Atbash("ABC", ABC);
+            return { passed: out === "ZYX", detail: `out="${out}"` };
+         }],
+
+         ["6 — Atbash is an involution", () => {
+            const out = Atbash(Atbash("HELLO WORLD", ABC), ABC);
+            return { passed: out === "HELLO WORLD", detail: `out="${out}"` };
+         }],
+
+         ["7 — Atbash custom alphabet", () => {
+            const out = Atbash("AD", "ABCD");
+            return { passed: out === "DA", detail: `out="${out}"` };
+         }],
+
+         // ── GetKeywordsInString ───────────────────────────────────────
+         ["8 — keyword match is case-insensitive", () => {
+            const out = GetKeywordsInString("the north star", "north");
+            return { passed: out.join() === "NORTH", detail: `out=${JSON.stringify(out)}` };
+         }],
+
+         ["9 — comma list trims spaces", () => {
+            const out = GetKeywordsInString("GOWESTNOW", " WEST , EAST ");
+            return { passed: out.join() === "WEST", detail: `out=${JSON.stringify(out)}` };
+         }],
+
+         ["10 — no match -> empty array", () => {
+            const out = GetKeywordsInString("XYZZY", "NORTH,SOUTH");
+            return { passed: Array.isArray(out) && out.length === 0, detail: `out=${JSON.stringify(out)}` };
+         }],
+
+         ["11 — overlapping matches skip consumed letters", () => {
+            // "NORTH" matched, scan continues after it; standalone "ONE" present.
+            const out = GetKeywordsInString("NORTHONE", "NORTH,ONE,ON");
+            return { passed: out.join() === "NORTH,ONE", detail: `out=${JSON.stringify(out)}` };
+         }],
+
+         // ── generateSequences ─────────────────────────────────────────
+         ["12 — Normal only: entry 0 is untransformed input", () => {
+            const seq = generateSequences("hello", ABC, {});
+            return { passed: seq[0].desc === "Normal" && seq[0].text === "hello", detail: `seq[0]=${JSON.stringify(seq[0])}` };
+         }],
+
+         ["13 — Normal only count = 26 (base + rot-1..25)", () => {
+            const seq = generateSequences("ABC", ABC, {});
+            return { passed: seq.length === 26, detail: `len=${seq.length}` };
+         }],
+
+         ["14 — toUpper applied before rotations", () => {
+            const seq = generateSequences("abc", ABC, { toUpper: true });
+            return { passed: seq[0].text === "ABC", detail: `seq[0].text="${seq[0].text}"` };
+         }],
+
+         ["15 — +Reverse adds a Reversed block (52 total)", () => {
+            const seq = generateSequences("ABC", ABC, { toReverse: true });
+            const rev = seq.find(s => s.desc === "Reversed");
+            return { passed: seq.length === 52 && rev && rev.text === "CBA", detail: `len=${seq.length} rev="${rev && rev.text}"` };
+         }],
+
+         ["16 — +Atbash adds an Atbash block (52 total)", () => {
+            const seq = generateSequences("ABC", ABC, { toAtbash: true });
+            const atb = seq.find(s => s.desc === "Atbash");
+            return { passed: seq.length === 52 && atb && atb.text === "ZYX", detail: `len=${seq.length} atb="${atb && atb.text}"` };
+         }],
+
+         ["17 — Atbash+Reverse adds 4 blocks (104 total)", () => {
+            const seq = generateSequences("ABC", ABC, { toAtbash: true, toReverse: true });
+            const ar = seq.find(s => s.desc === "Atbash+reversed");
+            // reverse("ABC")="CBA", atbash("CBA")="XYZ"
+            return { passed: seq.length === 104 && ar && ar.text === "XYZ", detail: `len=${seq.length} ar="${ar && ar.text}"` };
+         }],
+
+         ["18 — order: blocks are Normal, Reversed, Atbash, Atbash+reversed", () => {
+            const seq = generateSequences("ABC", ABC, { toAtbash: true, toReverse: true });
+            const order = [seq[0].desc, seq[26].desc, seq[52].desc, seq[78].desc];
+            const ok = order.join("|") === "Normal|Reversed|Atbash|Atbash+reversed";
+            return { passed: ok, detail: `order=${order.join(", ")}` };
+         }],
+
+         // ── GetPatternsInString ───────────────────────────────────────
+         ["19 — pattern detection finds a repeated substring", () => {
+            const out = GetPatternsInString("ABCDXXABCDY");
+            return { passed: out.indexOf("ABCD") >= 0, detail: `out=${JSON.stringify(out)}` };
+         }],
+
+         ["20 — no repeat -> empty patterns", () => {
+            const out = GetPatternsInString("ABCDEFGH");
+            return { passed: out.length === 0, detail: `out=${JSON.stringify(out)}` };
+         }],
+
+         // ── Smoke test on the built-in sample ──────────────────────────
+         ["21 — default sample decrypts at rot-5 (\"FIVE EIGHTY\")", () => {
+            const seq = generateSequences(SAMPLE, ABC, { toUpper: true });
+            // The 2nd line of the built-in sample is the plaintext rotated by 5,
+            // so Normal+rot-5 brings back readable words ("FIVE", "EIGHTY").
+            const rot5 = seq.find(s => s.desc === "Normal+rot-5");
+            const ok = !!rot5 && rot5.text.indexOf("FIVE") >= 0 && rot5.text.indexOf("EIGHTY") >= 0;
+            return { passed: ok, detail: `found=${!!rot5}` };
+         }],
+
+         // ── englishChiSquared (auto-solver) ───────────────────────────
+         ["22 — English text scores lower (better) than its rot-1", () => {
+            const pt = "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG";
+            const ok = englishChiSquared(pt) < englishChiSquared(RotX(pt, 1, ABC));
+            return { passed: ok, detail: `pt=${englishChiSquared(pt).toFixed(1)} rot1=${englishChiSquared(RotX(pt,1,ABC)).toFixed(1)}` };
+         }],
+
+         ["23 — empty / no-letters -> Infinity", () => {
+            return { passed: englishChiSquared("") === Infinity && englishChiSquared("123 !?") === Infinity, detail: "ok" };
+         }],
+
+         ["24 — auto-solver picks the right rotation (undo rot-5 = rot-21)", () => {
+            const pt = "WE FOUND THE CACHE AT FIVE EIGHTY NORTH";
+            const cipher = RotX(pt, 5, ABC);
+            const seq = generateSequences(cipher, ABC, {});
+            let best = null;
+            seq.forEach(s => { const c = englishChiSquared(s.text); if (!best || c < best.c) best = { desc: s.desc, text: s.text, c }; });
+            return { passed: best.desc === "Normal+rot-21" && best.text === pt, detail: `best=${best.desc}` };
+         }],
+
+         ["25 — chi-squared is reverse-invariant (documents the limitation)", () => {
+            const t = "HELLO WORLD";
+            const ok = englishChiSquared(t) === englishChiSquared(t.split("").reverse().join(""));
+            return { passed: ok, detail: "equal as expected" };
+         }],
+
+      ];
+
+      const results = tests.map(([name, fn]) => run(name, fn));
+
+      const tbody = document.getElementById("results");
+      let passed = 0;
+      results.forEach((r, i) => {
+         const row = document.createElement("tr");
+         row.className = r.passed ? "pass" : "fail";
+         row.innerHTML =
+            `<td>${i + 1}</td>` +
+            `<td>${r.name}</td>` +
+            `<td>${r.passed ? "✓ PASS" : "✗ FAIL"}</td>` +
+            `<td class="detail">${r.detail || ""}</td>`;
+         tbody.appendChild(row);
+         if (r.passed) passed++;
+      });
+
+      const summaryEl = document.getElementById("summary");
+      summaryEl.textContent = `${passed} / ${results.length} tests passed`;
+      summaryEl.className = "summary " + (passed === results.length ? "all-pass" : "has-fail");
+   </script>
+</body>
+</html>

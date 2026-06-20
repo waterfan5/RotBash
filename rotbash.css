@@ -1,0 +1,126 @@
+/* ============================================================
+   Rotate and Bash — tool-specific layout on top of ../Shared/theme.css
+   Shared chrome (gradient header, hamburger nav, .nltm-check, card,
+   button, input) lives in theme.css; this file only holds the page
+   layout unique to this tool. Tokens only — no hardcoded colors/fonts.
+   ============================================================ */
+
+.rb-main {
+   max-width: 960px;
+   margin: 0 auto;
+   padding: var(--nltm-sp-6) var(--nltm-sp-5) var(--nltm-sp-8);
+   display: flex;
+   flex-direction: column;
+   gap: var(--nltm-sp-5);
+}
+
+.rb-main form { margin: 0; }
+
+.rb-card { padding: var(--nltm-sp-5); }
+
+.rb-heading {
+   font-family: var(--nltm-font-display);
+   font-style: italic;
+   font-weight: 600;
+   font-size: var(--nltm-fs-4);
+   color: var(--nltm-primary-deep);
+   margin: 0 0 var(--nltm-sp-3);
+}
+
+.rb-help {
+   color: var(--nltm-muted);
+   font-size: var(--nltm-fs-2);
+   margin: 0 0 var(--nltm-sp-3);
+}
+
+/* ---------- Controls rows ---------- */
+
+.rb-controls {
+   display: flex;
+   flex-wrap: wrap;
+   align-items: center;
+   gap: var(--nltm-sp-4);
+   margin-top: var(--nltm-sp-4);
+}
+
+/* ---------- Labeled fields ---------- */
+
+.rb-field { margin-top: var(--nltm-sp-4); }
+
+.rb-label {
+   display: block;
+   font-size: var(--nltm-fs-2);
+   color: var(--nltm-muted);
+   margin-bottom: var(--nltm-sp-2);
+}
+
+/* ---------- Text surfaces ---------- */
+
+.rb-textarea {
+   width: 100%;
+   box-sizing: border-box;
+   font-family: var(--nltm-font-mono);
+   font-size: var(--nltm-fs-1);
+   resize: vertical;
+}
+
+.rb-alphabet {
+   max-width: 100%;
+   font-family: var(--nltm-font-mono);
+   letter-spacing: 0.04em;
+}
+
+.rb-sequences {
+   width: 100%;
+   box-sizing: border-box;
+   font-family: var(--nltm-font-mono);
+   font-size: var(--nltm-fs-1);
+   margin-bottom: var(--nltm-sp-4);
+}
+
+/* ---------- Sample caption (inline in card) ---------- */
+
+.rb-sample-caption {
+   margin: var(--nltm-sp-3) 0 0;
+   min-height: 1.4em;
+   font-family: var(--nltm-font-hand);
+   font-size: var(--nltm-fs-3);
+   color: var(--nltm-accent);
+}
+
+/* ---------- Alphabet details/summary ---------- */
+
+.rb-alphabet-details summary {
+   cursor: pointer;
+   list-style: none;
+   display: flex;
+   align-items: center;
+   gap: var(--nltm-sp-2);
+   margin-bottom: 0;
+}
+.rb-alphabet-details summary::-webkit-details-marker { display: none; }
+.rb-alphabet-details summary::before {
+   content: "▶";
+   font-size: 0.65em;
+   color: var(--nltm-muted);
+   transition: transform 0.15s;
+}
+.rb-alphabet-details[open] summary::before { transform: rotate(90deg); }
+.rb-alphabet-details .nltm-input { margin-top: var(--nltm-sp-2); }
+
+/* ---------- Output header (label + copy) ---------- */
+
+.rb-output-head {
+   display: flex;
+   align-items: baseline;
+   justify-content: space-between;
+   gap: var(--nltm-sp-3);
+   margin-top: var(--nltm-sp-4);
+}
+.rb-output-head .rb-label { margin-bottom: 0; }
+.rb-copy-btn { font-size: var(--nltm-fs-1); padding: var(--nltm-sp-1) var(--nltm-sp-3); }
+
+@media (max-width: 640px) {
+   .rb-main { padding: var(--nltm-sp-5) var(--nltm-sp-4) var(--nltm-sp-7); }
+   #FrameHeader.nltm-tool-header { flex-direction: column; gap: var(--nltm-sp-1); }
+}

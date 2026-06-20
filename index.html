@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Rotate and Bash</title>
+   <link rel="icon" href="../Shared/favicon.ico" />
+
+   <!-- Shared theme + fonts -->
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600;1,9..144,700&family=Caveat+Brush&family=Inter:wght@400;500;600&display=swap">
+   <link rel="stylesheet" href="../Shared/theme.css" />
+   <link rel="stylesheet" href="rotbash.css" />
+
+   <!-- Hamburger nav + icon font -->
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+   <link rel="stylesheet" href="../Shared/hamburgermenu.css" />
+   <script type="text/javascript" src="../Shared/hamburgermenu.js"></script>
+
+   <!-- Google Analytics -->
+   <script async src="https://www.googletagmanager.com/gtag/js?id=G-1T547128ND"></script>
+
+   <!-- Core transform/scoring logic (DOM-free, shared with test.html) -->
+   <script type="text/javascript" src="rotbash-logic.js"></script>
+
+   <script>
+      // ── Thin DOM glue: read inputs -> call rotbash-logic -> render ──
+
+      function removeOptions(selectElement) {
+         var i, L = selectElement.options.length - 1;
+         for (i = L; i >= 0; i--) {
+            selectElement.remove(i);
+         }
+      }
+
+      function sortSelect(selElem) {
+         var tmpAry = new Array();
+         for (var i = 0; i < selElem.options.length; i++) {
+            tmpAry[i] = new Array();
+            tmpAry[i][0] = selElem.options[i].text;
+            tmpAry[i][1] = selElem.options[i].value;
+         }
+         tmpAry.sort();
+         tmpAry.reverse();
+         while (selElem.options.length > 0) {
+            selElem.options[0] = null;
+         }
+         for (var i = 0; i < tmpAry.length; i++) {
+            var op = new Option(tmpAry[i][0], tmpAry[i][1]);
+            selElem.options[i] = op;
+         }
+         return;
+      }
+
+      function ShowSelectDetails() {
+         var lb = document.getElementById("lbSequences");
+         var sKeywords = document.getElementById("txtKeywords").value;
+
+         var sText = lb.options[lb.selectedIndex].text;
+         var sPatternSearch = sText.substring(sText.lastIndexOf("->") + 2); // Strip back to text
+
+         sText += "\nKeywords=" + GetKeywordsInString(sPatternSearch, sKeywords).join();
+
+         document.getElementById("txtOutput").value = sText;
+      }
+
+      // Pad a non-negative integer into the fixed-width prefix used in the
+      // list so entries line up and sort cleanly.
+      function scorePrefix(score) {
+         var n = Math.min(99999, Math.max(0, Math.round(score)));
+         return ("00000" + n.toString()).slice(-5) + "->";
+      }
+
+      function renderResults(items, scoreMode, bSortByScore) {
+         // Attach a numeric score per candidate.
+         var sKeywords = document.getElementById("txtKeywords").value;
+         items.forEach(function (it) {
+            if (scoreMode === "keyword") {
+               it.score = GetKeywordsInString(it.text, sKeywords).join().length;
+            } else if (scoreMode === "english") {
+               // chi-squared: lower = more English. Store finite for display.
+               var chi = englishChiSquared(it.text);
+               it.score = isFinite(chi) ? chi : 99999;
+            } else {
+               it.score = null;
+            }
+         });
+
+         // Sort best-first. Keyword: higher count wins. English: lower chi² wins.
+         if (bSortByScore && scoreMode !== "none") {
+            items.sort(scoreMode === "english"
+               ? function (a, b) { return a.score - b.score; }
+               : function (a, b) { return b.score - a.score; });
+         }
+
+         var lb = document.getElementById("lbSequences");
+         removeOptions(lb);
+         items.forEach(function (it) {
+            var opt = document.createElement("option");
+            opt.text = (scoreMode === "none" ? "" : scorePrefix(it.score)) + it.desc + "-> " + it.text;
+            opt.value = it.score == null ? "" : it.score;
+            lb.add(opt);
+         });
+         if (lb.options.length > 0) lb.selectedIndex = 0; // best candidate
+      }
+
+      function OnAction() {
+         trackEvent("action", getSettings());
+         var bSortByScore = document.getElementById("cbSortByScore").checked;
+         var inputText = document.getElementById("txtInput").value;
+         var AlphabetText = document.getElementById("txtAlphabet").value;
+
+         var opts = {
+            toUpper:   document.getElementById("cbConvertToUpper").checked,
+            toAtbash:  document.getElementById("cbAtbash").checked,
+            toReverse: document.getElementById("cbReverse").checked
+         };
+
+         // English-likeness scoring is the auto-solver and takes precedence
+         // over keyword scoring when enabled.
+         var scoreMode = "none";
+         if (document.getElementById("cbScoreEnglish").checked) scoreMode = "english";
+         else if (document.getElementById("cbScoreKeywords").checked) scoreMode = "keyword";
+
+         document.getElementById("txtOutput").value = inputText;
+
+         // Build all candidate sequences from the shared core, score + render.
+         var sequences = generateSequences(inputText, AlphabetText, opts);
+         renderResults(sequences, scoreMode, bSortByScore);
+
+         ShowSelectDetails();
+      }
+
+      function CopyOutput() {
+         trackEvent("copy");
+         var ta = document.getElementById("txtOutput");
+         if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(ta.value);
+         } else {
+            ta.select();
+            document.execCommand("copy");
+         }
+      }
+
+      function getSettings() {
+         return ["cbAtbash", "cbReverse", "cbScoreKeywords", "cbScoreEnglish", "cbSortByScore"]
+            .filter(c => document.getElementById(c).checked)
+            .join(" ");
+      }
+
+      // ── Feature-showcase samples ─────────────────────────────────────
+      // Each loads input, sets the options that best demonstrate one
+      // feature, updates the caption, then runs the analysis.
+      var SAMPLES = {
+         1: {
+            caption: "ROT cipher — \"Score by English-likeness\" auto-cracks it: the readable rotation floats to the top.",
+            opts: { upper: true, atbash: false, reverse: false, keywords: false, english: true, sort: true },
+            // ROT-13 of "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG"
+            text: "GUR DHVPX OEBJA SBK WHZCF BIRE GUR YNML QBT"
+         },
+         2: {
+            caption: "Atbash — tick \"Include Atbash\"; the Atbash row reverses the alphabet back to plain text.",
+            opts: { upper: true, atbash: true, reverse: false, keywords: false, english: true, sort: true },
+            // Atbash of "NORTH FIFTY DEGREES WALK EAST"
+            text: "MLIGS URUGB WVTIVVH DZOP VZHG"
+         },
+         3: {
+            // English-likeness is reverse-invariant (reversing text leaves letter
+            // counts unchanged), so the keyword scan is what lifts the Reversed row.
+            caption: "Reversed — tick \"Include Reverse\"; the keyword scan lifts the readable Reversed row to the top.",
+            opts: { upper: true, atbash: false, reverse: true, keywords: true, english: false, sort: true },
+            // Reverse of "FOLLOW THE PATH NORTH TO THE OAK TREE"
+            text: "EERT KAO EHT OT HTRON HTAP EHT WOLLOF"
+         },
+         4: {
+            caption: "Keyword scan — geocaching words score each rotation; \"Sort by score\" ranks the hits.",
+            opts: { upper: true, atbash: false, reverse: false, keywords: true, english: false, sort: true },
+            text: "XGTW XXKUI DIUVTX ADQZ ZDBCOT DVHG HRC DMHM XSDMHM"
+         }
+      };
+
+      function onSample(n) {
+         trackEvent("Sample", n);
+         var s = SAMPLES[n];
+         if (!s) return;
+         document.getElementById("txtInput").value = s.text;
+         document.getElementById("cbConvertToUpper").checked = s.opts.upper;
+         document.getElementById("cbAtbash").checked = s.opts.atbash;
+         document.getElementById("cbReverse").checked = s.opts.reverse;
+         document.getElementById("cbScoreKeywords").checked = s.opts.keywords;
+         document.getElementById("cbScoreEnglish").checked = s.opts.english;
+         document.getElementById("cbSortByScore").checked = s.opts.sort;
+         document.getElementById("sampleCaption").textContent = s.caption;
+         OnAction();
+      }
+
+      function page_init() {
+         HamburgerMenu_Init();
+      }
+   </script>
+</head>
+
+<body class="nltm-page" onload="page_init()">
+
+   <!-- Top navigation / hamburger menu (DOM consumed by hamburgermenu.js) -->
+   <div class="topnav">
+      <div class="nltm-tool-header" id="FrameHeader">
+         <span class="nltm-tool-title">Rotate and Bash</span>
+         <span class="nltm-tool-sub">Now Listen To Me Geocacher</span>
+         <div class="nltm-header-right">
+            <span class="nltm-header-samples-label">Try a sample:</span>
+            <button class="nltm-header-sample" onclick="onSample(1)" type="button">1 · ROT cipher</button>
+            <button class="nltm-header-sample" onclick="onSample(2)" type="button">2 · Atbash</button>
+            <button class="nltm-header-sample" onclick="onSample(3)" type="button">3 · Reversed</button>
+            <button class="nltm-header-sample" onclick="onSample(4)" type="button">4 · Keyword scan</button>
+         </div>
+      </div>
+      <!-- Navigation links (hidden by default) -->
+      <div id="myLinks"></div>
+      <!-- "Hamburger menu" / "Bar icon" to toggle the navigation links -->
+      <a href="javascript:void(0);" class="icon" onclick="HamburgerMenu_Open()">
+         <i class="fa fa-bars"></i>
+      </a>
+   </div>
+
+   <main class="rb-main">
+
+      <form name="InputForm">
+         <section class="nltm-card rb-card">
+            <h2 class="rb-heading">Input</h2>
+            <p class="rb-help">Provide the text to rotate and bash:</p>
+
+            <textarea id="txtInput" class="nltm-input rb-textarea" rows="5">ABCDEFGHIJKLMNOPQRSTUVWXYZ
+XGTW XXKUI DIUVTX ADQZ ZDBCOT DVHG HRC DMHM XSDMHM
+</textarea>
+
+            <div class="rb-controls">
+               <label class="nltm-check"><input type="checkbox" id="cbConvertToUpper" checked> Convert to uppercase</label>
+               <label class="nltm-check"><input type="checkbox" id="cbAtbash"> Include Atbash</label>
+               <label class="nltm-check"><input type="checkbox" id="cbReverse"> Include Reverse</label>
+            </div>
+
+            <div class="rb-controls">
+               <button class="nltm-button" name="FormAction" value="Analyze" onclick="OnAction()" type="button">Analyze</button>
+               <label class="nltm-check"><input type="checkbox" id="cbScoreEnglish"> Score by English-likeness</label>
+               <label class="nltm-check"><input type="checkbox" id="cbScoreKeywords" checked> Score keywords</label>
+               <label class="nltm-check"><input type="checkbox" id="cbSortByScore"> Sort by score</label>
+            </div>
+
+            <p id="sampleCaption" class="rb-sample-caption"></p>
+
+            <details class="rb-field rb-alphabet-details">
+               <summary class="rb-label">Edit alphabet</summary>
+               <input type="text" id="txtAlphabet" class="nltm-input rb-alphabet" size="40" value="ABCDEFGHIJKLMNOPQRSTUVWXYZ">
+            </details>
+
+            <div class="rb-field">
+               <label class="rb-label" for="txtKeywords">Keywords for scanning:</label>
+               <textarea id="txtKeywords" class="nltm-input rb-textarea" rows="2">335,882, NULL, ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT,NINE, TEN, TWENTY, THIRTY, FOURTY, FIFTY,HUNDRED, POINT, DOT, DEGREES, NORTH, WEST, EAST, SOUTH, WALK, FIND,CACHE, COORDINATE, LOCATION, SEARCH, GEO, ROUTE, STEP
+</textarea>
+            </div>
+         </section>
+      </form>
+
+<form name="OutputForm">
+         <section class="nltm-card rb-card">
+            <h2 class="rb-heading">Output</h2>
+            <label class="rb-label" for="lbSequences">Sequence Results</label>
+            <select id="lbSequences" class="nltm-input rb-sequences" onchange="ShowSelectDetails();"></select>
+
+            <div class="rb-output-head">
+               <label class="rb-label" for="txtOutput">Details:</label>
+               <button class="nltm-button rb-copy-btn" onclick="CopyOutput()" type="button">Copy output</button>
+            </div>
+            <textarea readonly id="txtOutput" class="nltm-input rb-textarea" rows="5"></textarea>
+         </section>
+      </form>
+
+   </main>
+</body>
+</html>
